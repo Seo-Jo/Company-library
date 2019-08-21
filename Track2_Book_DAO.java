@@ -8,6 +8,52 @@ class Track2_Book_DAO{
 	ResultSet	    	rs	     = null;
 	PreparedStatement   ps       = null;
 
+	Track2_Book_DTO check_ReturnBook(String member_Id, String book_Id){
+		String query =  " select a.rent_id, '['||a.book_id||']'||b.book_name as book_info, "+
+						" a.member_id, c.name, to_char(a.rent_start_Date, 'yyyy-mm-dd') as rent_start_Date, "+
+						" to_char(a.rent_return_date, 'yyyy-mm-dd')as rent_return_date "+ 
+						" from A05_track2_book_rent a, "+
+						" track2_book b, A05_track2_member c "+
+						" where a.rent_id in(select max(rent_id) as rent_id "+
+						" from a05_track2_book_rent group by book_id) "+
+						" and a.book_id = b.book_id "+
+						" and a.member_id = c.member_id "+
+						" and b.status = 'y' "+
+						" and a.member_id = '"+member_Id+"' "+
+						" and a.book_id = '"+book_Id+"' ";
+
+		Track2_Book_DTO dto = null;
+		// System.out.print(query);
+		try{
+			con = common.getConnection();
+			ps = con.prepareStatement(query);
+			rs = ps.executeQuery();
+			if(rs.next()){
+				dto = new Track2_Book_DTO();
+				dto.setRent_Id(rs.getString(1)); 
+				dto.setBook_Id(rs.getString(2)); 
+				dto.setMember_Id(rs.getString(3)); 
+				dto.setName(rs.getString(4)); 
+				dto.setRent_start_date(rs.getString(5)); 
+				dto.setRent_return_date(rs.getString(6));
+			}
+			
+		}catch(RemoteException re){
+			System.out.print("RemoteException executeQuery: " +re.getMessage());
+		}catch(SQLException se){
+			System.out.print("SQLException executeQuery: " +se.getMessage());
+		}catch(Exception e){
+			System.out.print("Exception executeQuery: " +e.getMessage());
+		}finally{
+			try{
+				common.close(con,ps,rs);
+			}catch(Exception e){
+				System.out.print("close Exception executeQuery: " +e.getMessage());
+			}
+		}
+		return dto;
+	}		
+		
 	ArrayList<Track2_Book_DTO> BM_History(String search, String gubun){
 		ArrayList<Track2_Book_DTO> arr = new ArrayList<Track2_Book_DTO>();
 		String query =  " select a.book_id, b.book_name, b.author, b.publisher, a.member_id, c.name, "+
@@ -21,7 +67,7 @@ class Track2_Book_DAO{
 						" and d.dept_no = c.dept_no "+
 						" and e.rank_no = c.rank_no ";
 						
-		// System.out.println(query);
+		//System.out.println(query);
 		if(gubun.equals("book")){
 			query += " and b.book_id = '"+search+"' ";
 		}else if(gubun.equals("member")){
@@ -102,6 +148,50 @@ class Track2_Book_DAO{
 		}
 		return arr;
 	}	
+	
+	ArrayList<Track2_Book_DTO> return_Check(String member, String book){
+		ArrayList<Track2_Book_DTO> arr = new ArrayList<Track2_Book_DTO>();
+		String query =  " SELECT b.rent_id, b.member_id, b.BOOK_ID, a.BOOK_NAME, a.author, a.publisher, "+
+						" b.RENT_START_DATE, b.RENT_RETURN_DATE, "+
+						" decode(a.status, 'y', '[대출가능]', '[대출불가]') as status "+
+						" from TRACK2_BOOK a, A05_TRACK2_BOOK_RENT b "+
+						" where a.BOOK_ID = b.BOOK_ID "+
+						" and b.Member_Id = '"+member+"' "+
+						" and b.BOOK_ID = '"+book+"' ";
+
+		//System.out.print(query);		
+		Track2_Book_DTO dto = null;				
+		try{
+			con = common.getConnection();
+			ps = con.prepareStatement(query);
+			rs = ps.executeQuery();
+			while(rs.next()){
+				String member_Id = rs.getString(1); 
+				String book_Id = rs.getString(2); 
+				String book_Name = rs.getString(3); 
+				String author = rs.getString(4); 
+				String publisher = rs.getString(5); 
+				String rent_Start_Date = rs.getString(6); 
+				String rent_Return_Date = rs.getString(7); 
+				String status = rs.getString(8); 
+				dto = new Track2_Book_DTO(member_Id, book_Id, book_Name, author, publisher, rent_Start_Date, rent_Return_Date, status);
+				arr.add(dto);
+			}
+		}catch(RemoteException re){
+			System.out.print("RemoteException book_Search: " +re.getMessage());
+		}catch(SQLException se){
+			System.out.print("SQLException book_Search: " +se.getMessage());
+		}catch(Exception e){
+			System.out.print("Exception book_Search: " +e.getMessage());
+		}finally{
+			try{
+				common.close(con,ps,rs);
+			}catch(Exception e){
+				System.out.print("close() Exception book_Search: " +e.getMessage());
+			}
+		}
+		return arr;
+	}
 	
 	ArrayList<Track2_Book_DTO> book_Return(String id, String gubun){
 		ArrayList<Track2_Book_DTO> arr = new ArrayList<Track2_Book_DTO>();
@@ -236,12 +326,11 @@ class Track2_Book_DAO{
 		return result;	
 	}
 	
-	int update_ReturnInfo(String member_Id, String book_Id, String rent_Return_Date){ 
+	int update_ReturnInfo(String member_Id, String book_Id){ 
 		String query = " update a05_track2_book_rent "+
 						" set rent_Return_Date = null "+
 						" where member_id = '"+member_Id+"' "+
-						" and book_id = '"+book_Id+"' "+
-						" and rent_Return_Date = '"+rent_Return_Date+"' ";
+						" and book_id = '"+book_Id+"' ";
 		int result = 0;
 		//System.out.print(query);
 		try{
@@ -366,49 +455,6 @@ class Track2_Book_DAO{
 		}
 		return arr;
 	}
-
-	Track2_Book_DTO check_ReturnBook(String member_Id, String book_Id, String rent_Return_Date){
-		String query = "select a.book_id, b.book_name, b.author, b.publisher, a.member_id, c.name, "+
-						" to_char(a.rent_start_date, 'yyyy-mm-dd') as rent_start_date, to_char(a.rent_return_date , 'yyyy-mm-dd') as rent_return_date "+
-						" from a05_track2_book_rent a, track2_book b, a05_track2_member c "+
-						" where a.book_id = b.book_id "+
-						" and a.member_id = c.member_id "+
-						" and a.member_id = '"+member_Id+"' "+
-						" and a.book_id = '"+book_Id+"' "+
-						" and a.rent_return_date = '"+rent_Return_Date+"' ";
-		Track2_Book_DTO dto = null;
-		// System.out.print(query);
-		try{
-			con = common.getConnection();
-			ps = con.prepareStatement(query);
-			rs = ps.executeQuery();
-			if(rs.next()){
-				dto = new Track2_Book_DTO();
-				dto.setBook_Id(rs.getString(1)); 
-				dto.setBook_Name(rs.getString(2)); 
-				dto.setAuthor(rs.getString(3)); 
-				dto.setPublisher(rs.getString(4)); 
-				dto.setMember_Id(rs.getString(5)); 
-				dto.setName(rs.getString(6)); 
-				dto.setRent_start_date(rs.getString(7)); 
-				dto.setRent_return_date(rs.getString(8)); 
-			}
-			
-		}catch(RemoteException re){
-			System.out.print("RemoteException executeQuery: " +re.getMessage());
-		}catch(SQLException se){
-			System.out.print("SQLException executeQuery: " +se.getMessage());
-		}catch(Exception e){
-			System.out.print("Exception executeQuery: " +e.getMessage());
-		}finally{
-			try{
-				common.close(con,ps,rs);
-			}catch(Exception e){
-				System.out.print("close Exception executeQuery: " +e.getMessage());
-			}
-		}
-		return dto;
-	}		
 	
 	Track2_Book_DTO cancle_BCheck(String search){
 		String query = " SELECT a.member_id, c.name, a.BOOK_ID, substr(b.book_name, 0,6) as book_name, b.author, "+
